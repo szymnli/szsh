@@ -40,6 +40,20 @@ void execute(char **args){
     }
 }
 
+int builtin(char **args){
+    if (0 == strcmp(args[0], "cd")){
+        if (!args[1]){
+            chdir(getenv("HOME"));
+        }
+        else if(-1 == chdir(args[1])){
+            perror("cd failed");
+        }
+        return 1;
+    } else{
+        return 0;
+    }
+}
+
 int main(){
     char input[1024];
     printf("Type 'exit' to leave the shell\n");
@@ -57,10 +71,13 @@ int main(){
             break;
         } else {
             char **args = parse(input);
-            for (int i = 0; args[i] != NULL; i++){
-                printf("%s\n", args[i]);
+            if (NULL == args[0]){
+                free(args);
+                continue;
             }
-            execute(args);
+            if (!builtin(args)) {
+                execute(args);
+            }
             free(args);
         }
     }
