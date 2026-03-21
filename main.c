@@ -54,6 +54,53 @@ int builtin(char **args){
     }
 }
 
+void execute_pipe(char *input){
+    // create a pipe
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        perror("pipe failed");
+        exit(1);
+    }
+
+    char *pipe_pos = strchr(input, '|');  // find the | character
+    *pipe_pos = '\0';                     // replace | with \0, splitting the string
+    char *left = input;                   // "ls "
+    char *right = pipe_pos + 1;          // " grep txt"
+
+    pid_t pid1 = fork();
+    if (pid1 == 0) {
+        // child 1 — will run left command (ls)
+        dup2(pipefd[1], 1);   // replace stdout with pipe write end
+        close(pipefd[0]);     // child 1 doesn't need read end
+        close(pipefd[1]);     // close original write end (dup2 made a copy)
+        char **args = parse(left);
+        execvp(args[0], args);
+        perror("execvp failed");
+        exit(1);
+    }
+
+    pid_t pid2 = fork();
+    if (pid2 == 0) {
+        // child 2 — will run right command (grep)
+        dup2(pipefd[0], 0);   // replace stdin with pipe read end
+        close(pipefd[1]);     // child 2 doesn't need write end
+        close(pipefd[0]);     // close original read end (dup2 made a copy)
+        char **args = parse(right);
+        execvp(args[0], args);
+        perror("execvp failed");
+        exit(1);
+    }
+
+    // parent doesn't use the pipe at all
+    close(pipefd[0]);
+    close(pipefd[1]);
+
+    // wait for both children
+    waitpid(pid1, NULL, 0);
+    waitpid(pid2, NULL, 0);
+
+}
+
 int main(){
     char input[1024];
     printf("Type 'exit' to leave the shell\n");
@@ -66,19 +113,25 @@ int main(){
         }
         // Removing the new line at the end of the user's input
         input[strcspn(input, "\n")] = '\0';
+
         // Stop the shell when the user inputs 'exit'
         if (strcmp("exit", input) == 0){
             break;
         } else {
-            char **args = parse(input);
-            if (NULL == args[0]){
+            // Check for pipe
+            if (strchr(input, '|')) {
+                execute_pipe(input);
+            } else {
+                char **args = parse(input);
+                if (NULL == args[0]) {
+                    free(args);
+                    continue;
+                }
+                if (!builtin(args)) {
+                    execute(args);
+                }
                 free(args);
-                continue;
             }
-            if (!builtin(args)) {
-                execute(args);
-            }
-            free(args);
         }
     }
 
