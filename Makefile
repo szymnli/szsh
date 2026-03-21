@@ -1,9 +1,15 @@
 CC = gcc
 CFLAGS = -Wall -g
 
-szsh: main.c
-	$(CC) $(CFLAGS) main.c -o szsh
+SRCS = main.c parse.c execute.c builtin.c
+OBJS = $(SRCS:.c=.o)
+
+szsh: $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o szsh
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY: clean
 clean:
-	rm -f szsh
+	rm -f szsh $(OBJS)
